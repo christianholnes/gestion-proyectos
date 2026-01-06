@@ -43,7 +43,7 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        const DATA_VERSION = "11.0 - Firebase"; // Cambiar esta versión fuerza recarga de datos
+        const DATA_VERSION = "11.2 - Critical Fixes"; // Cambiar esta versión fuerza recarga de datos
         const INITIAL_DATA = {
             miembros: [
                 { id: 2, nombre: "Alonso Zapata", roles: ["Programadores", "Guardián de Calidad", "Responsable de Datos y Aprendizaje Estratégico", "Innovación Tec", "Strategic Challenger"] },
@@ -187,12 +187,17 @@
 
                         // Cargar entidades
                         const entidadesSnap = await window.firebaseGetDocs(window.firebaseCollection(db, 'entidades'));
+                        const entidadesBase = INITIAL_DATA.entidades; // Siempre incluir las 3 bases
+                        
                         if (!entidadesSnap.empty) {
                             const entidadesData = entidadesSnap.docs.map(doc => doc.data());
-                            setEntidades(entidadesData);
+                            // Combinar entidades base con las creadas por usuario
+                            const entidadesIds = new Set(entidadesData.map(e => e.id));
+                            const entidadesBaseNoRepetidas = entidadesBase.filter(e => !entidadesIds.has(e.id));
+                            setEntidades([...entidadesBaseNoRepetidas, ...entidadesData]);
                         } else {
-                            setEntidades(INITIAL_DATA.entidades);
-                            INITIAL_DATA.entidades.forEach(async (entidad) => {
+                            setEntidades(entidadesBase);
+                            entidadesBase.forEach(async (entidad) => {
                                 await window.firebaseSetDoc(window.firebaseDoc(db, 'entidades', entidad.id), entidad);
                             });
                         }
@@ -387,6 +392,8 @@
             };
 
             const asignarMiembro = (itemId, rol, miembroId, esEntidad = false, porcentajePersonalizado = null) => {
+                console.log('🔍 asignarMiembro llamado:', { itemId, rol, miembroId, esEntidad, porcentajePersonalizado });
+                
                 const items = esEntidad ? entidades : proyectos;
                 const setItems = esEntidad ? setEntidades : setProyectos;
                 const item = items.find(p => p.id === itemId);
@@ -396,7 +403,13 @@
 
                 const disponibilidad = calcularDisponibilidad(miembroId);
                 const rolInfo = item.roles.find(r => r.nombre === rol);
-                const cargaRol = porcentajePersonalizado || rolInfo?.porcentaje || tiposIntervencion[rolInfo?.tipo] || 50;
+                
+                // Usar porcentaje personalizado si existe (incluso si es 0), sino usar rol o tipo
+                const cargaRol = (porcentajePersonalizado !== null && porcentajePersonalizado !== undefined) 
+                    ? porcentajePersonalizado 
+                    : (rolInfo?.porcentaje || tiposIntervencion[rolInfo?.tipo] || 50);
+
+                console.log('📊 Carga calculada:', { cargaRol, porcentajePersonalizado, 'rolInfo?.porcentaje': rolInfo?.porcentaje, 'tiposIntervencion[rolInfo?.tipo]': tiposIntervencion[rolInfo?.tipo] });
 
                 if (disponibilidad - cargaRol < 10) {
                     alert('Este miembro excedería el 90% de carga permitida.');
@@ -415,12 +428,20 @@
                     if (p.id === itemId) {
                         const asignaciones = p.asignaciones || [];
                         if (asignaciones.some(a => a.rol === rol && a.miembroId === miembroId)) return p;
+                        
+                        // CRÍTICO: Guardar el porcentaje personalizado, no el fallback
+                        const porcentajeAGuardar = (porcentajePersonalizado !== null && porcentajePersonalizado !== undefined) 
+                            ? porcentajePersonalizado 
+                            : (rolInfo?.porcentaje || tiposIntervencion[rolInfo?.tipo] || 50);
+                        
+                        console.log('💾 Guardando asignación con porcentaje:', porcentajeAGuardar);
+                        
                         return { 
                             ...p, 
                             asignaciones: [...asignaciones, { 
                                 rol, 
                                 miembroId, 
-                                porcentaje: porcentajePersonalizado || rolInfo?.porcentaje || tiposIntervencion[rolInfo?.tipo],
+                                porcentaje: porcentajeAGuardar,
                                 fecha: new Date().toISOString() 
                             }] 
                         };

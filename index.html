@@ -1324,7 +1324,7 @@
             const [ord, setOrd] = useState('nombre');
 
             let mFilt = miembros.filter(m => m.nombre.toLowerCase().includes(busq.toLowerCase()));
-            if (ord === 'nombre') mFilt.sort((a, b) => a.nombre.localeCompare(b.nombre));
+            if (ord === 'nombre') mFilt.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
             else if (ord === 'disponibilidad') mFilt.sort((a, b) => calcularDisponibilidad(b.id) - calcularDisponibilidad(a.id));
             else mFilt.sort((a, b) => (100 - calcularDisponibilidad(a.id)) - (100 - calcularDisponibilidad(b.id)));
 
@@ -1549,17 +1549,19 @@
                                             <div className="mt-4 pt-4 border-t">
                                                 {miembrosConRol.length > 0 ? (
                                                     <div className="space-y-2">
-                                                        {miembrosConRol.map(m => (
-                                                            <div key={m.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                                                <span className="font-medium text-gray-900">{m.nombre}</span>
-                                                                <button
-                                                                    onClick={() => eliminarRolDeMiembro(m.id, rol)}
-                                                                    className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded"
-                                                                >
-                                                                    <i className="fas fa-times mr-1"></i>Quitar rol
-                                                                </button>
-                                                            </div>
-                                                        ))}
+                                                        {miembrosConRol
+                                                            .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+                                                            .map(m => (
+                                                                <div key={m.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                                                    <span className="font-medium text-gray-900">{m.nombre}</span>
+                                                                    <button
+                                                                        onClick={() => eliminarRolDeMiembro(m.id, rol)}
+                                                                        className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded"
+                                                                    >
+                                                                        <i className="fas fa-times mr-1"></i>Quitar rol
+                                                                    </button>
+                                                                </div>
+                                                            ))}
                                                     </div>
                                                 ) : (
                                                     <p className="text-gray-500 italic text-center py-4">
@@ -1616,8 +1618,8 @@
             };
 
             
-            const miembrosConRol = obtenerMiembrosPorRol(rol);
-            const miembrosSinRol = miembros.filter(m => !m.roles.includes(rol));
+            const miembrosConRol = obtenerMiembrosPorRol(rol).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+            const miembrosSinRol = miembros.filter(m => !m.roles.includes(rol)).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
             
             // Obtener proyectos/entidades donde ya está el rol
             const proyectosConRol = proyectos.filter(p => p.roles?.some(r => r.nombre === rol));
@@ -1949,7 +1951,7 @@
                                         Seleccionar Miembros ({miembrosSeleccionados.length} seleccionados)
                                     </label>
                                     <div className="border rounded-lg max-h-96 overflow-y-auto">
-                                        {miembros.map(m => (
+                                        {miembros.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')).map(m => (
                                             <div
                                                 key={m.id}
                                                 className="flex items-center p-3 hover:bg-gray-50 border-b last:border-b-0 cursor-pointer"
@@ -2272,7 +2274,7 @@
                                                 className="flex-1 px-4 py-2 border rounded-lg"
                                             >
                                                 <option value="">Seleccionar miembro...</option>
-                                                {miembros?.map(m => (
+                                                {miembros?.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')).map(m => (
                                                     <option key={m.id} value={m.id}>{m.nombre}</option>
                                                 ))}
                                             </select>
@@ -2558,7 +2560,7 @@
                                                 className="flex-1 px-4 py-2 border rounded-lg"
                                             >
                                                 <option value="">Seleccionar miembro...</option>
-                                                {miembros?.map(m => (
+                                                {miembros?.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')).map(m => (
                                                     <option key={m.id} value={m.id}>{m.nombre}</option>
                                                 ))}
                                             </select>

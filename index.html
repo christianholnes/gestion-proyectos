@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestión de Proyectos v11.0 - Firebase</title>
+    <title>Gestión de Proyectos v13.0 - Firebase Clean</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Firebase v9 - Modular SDK -->
+    <!-- Firebase v9 -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-        import { getFirestore, collection, getDocs, setDoc, doc, onSnapshot, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { getFirestore, collection, getDocs, setDoc, doc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
         
         const firebaseConfig = {
             apiKey: "AIzaSyASZYa_ByZkFUn1VPGORx45D84_vKg9MQw",
@@ -27,15 +27,14 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         
-        // Exponer funciones globalmente para que React pueda usarlas
         window.firebaseDB = db;
         window.firebaseCollection = collection;
         window.firebaseGetDocs = getDocs;
         window.firebaseSetDoc = setDoc;
         window.firebaseDoc = doc;
-        window.firebaseOnSnapshot = onSnapshot;
         window.firebaseDeleteDoc = deleteDoc;
         window.firebaseInitialized = true;
+        console.log('✅ Firebase inicializado');
     </script>
 </head>
 <body>
@@ -43,7 +42,7 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        const DATA_VERSION = "11.5 - Firebase ID Fix"; // Cambiar esta versión fuerza recarga de datos
+        const DATA_VERSION = "13.0"; // Cambiar esta versión fuerza recarga de datos
         const INITIAL_DATA = {
             miembros: [
                 { id: 2, nombre: "Alonso Zapata", roles: ["Programadores", "Guardián de Calidad", "Responsable de Datos y Aprendizaje Estratégico", "Innovación Tec", "Strategic Challenger"] },
@@ -115,33 +114,7 @@
                     asignaciones: []
                 }
             ],
-            proyectos: [
-                {
-                    id: 1, nombre: "Juntas Contamos", categoria: "Semipermanente",
-                    roles: [],
-                    fechaInicio: null, fechaFin: null, asignaciones: []
-                },
-                {
-                    id: 2, nombre: "Formando Catalizadores", categoria: "Semipermanente",
-                    roles: [],
-                    fechaInicio: null, fechaFin: null, asignaciones: []
-                },
-                {
-                    id: 3, nombre: "Colmena", categoria: "Semipermanente",
-                    roles: [],
-                    fechaInicio: null, fechaFin: null, asignaciones: []
-                },
-                {
-                    id: 4, nombre: "Sustentia", categoria: "Semipermanente",
-                    roles: [],
-                    fechaInicio: null, fechaFin: null, asignaciones: []
-                },
-                {
-                    id: 5, nombre: "WeCode", categoria: "Semipermanente",
-                    roles: [],
-                    fechaInicio: null, fechaFin: null, asignaciones: []
-                }
-            ],
+            proyectos: [],
             tiposIntervencion: { "Obligatorio": 50, "Esencial": 40, "Polinizador": 20, "Capa Central": 30, "Hub de crecimiento": 30, "Complementario": 30, "Contribuyente Clave": 40, "Especialista Activable": 30 }
         };
 
@@ -160,144 +133,129 @@
             const [entidadEdit, setEntidadEdit] = useState(null);
             const [rolEdit, setRolEdit] = useState(null);
 
-            // Cargar datos desde Firebase al iniciar
+            const [guardando, setGuardando] = useState(false);
+            const [cargando, setCargando] = useState(true);
+
+            // CARGAR desde Firebase al iniciar
             useEffect(() => {
-                const loadFromFirebase = async () => {
-                    // Esperar a que Firebase esté inicializado
+                const cargarDatos = async () => {
                     if (!window.firebaseInitialized) {
-                        setTimeout(loadFromFirebase, 100);
+                        setTimeout(cargarDatos, 100);
                         return;
                     }
 
                     try {
                         const db = window.firebaseDB;
-                        
+                        console.log('📥 Cargando datos desde Firebase...');
+
                         // Cargar miembros
                         const miembrosSnap = await window.firebaseGetDocs(window.firebaseCollection(db, 'miembros'));
                         if (!miembrosSnap.empty) {
                             const miembrosData = miembrosSnap.docs.map(doc => doc.data());
                             setMiembros(miembrosData);
+                            console.log('✅ Miembros cargados:', miembrosData.length);
                         } else {
-                            // Si no hay datos, usar INITIAL_DATA y guardar
                             setMiembros(INITIAL_DATA.miembros);
-                            INITIAL_DATA.miembros.forEach(async (miembro) => {
-                                await window.firebaseSetDoc(window.firebaseDoc(db, 'miembros', String(miembro.id)), miembro);
-                            });
+                            await Promise.all(
+                                INITIAL_DATA.miembros.map(m => 
+                                    window.firebaseSetDoc(window.firebaseDoc(db, 'miembros', String(m.id)), m)
+                                )
+                            );
+                            console.log('✅ Miembros iniciales guardados');
                         }
 
-                        // Cargar entidades
+                        // Cargar entidades (siempre incluir las 3 bases)
                         const entidadesSnap = await window.firebaseGetDocs(window.firebaseCollection(db, 'entidades'));
-                        const entidadesBase = INITIAL_DATA.entidades; // Siempre incluir las 3 bases
+                        const entidadesBase = INITIAL_DATA.entidades;
                         
                         if (!entidadesSnap.empty) {
                             const entidadesData = entidadesSnap.docs.map(doc => doc.data());
-                            // Combinar entidades base con las creadas por usuario
                             const entidadesIds = new Set(entidadesData.map(e => e.id));
                             const entidadesBaseNoRepetidas = entidadesBase.filter(e => !entidadesIds.has(e.id));
                             setEntidades([...entidadesBaseNoRepetidas, ...entidadesData]);
+                            console.log('✅ Entidades cargadas:', entidadesData.length + entidadesBaseNoRepetidas.length);
                         } else {
                             setEntidades(entidadesBase);
-                            entidadesBase.forEach(async (entidad) => {
-                                await window.firebaseSetDoc(window.firebaseDoc(db, 'entidades', entidad.id), entidad);
-                            });
+                            await Promise.all(
+                                entidadesBase.map(e => 
+                                    window.firebaseSetDoc(window.firebaseDoc(db, 'entidades', e.id), e)
+                                )
+                            );
+                            console.log('✅ Entidades base guardadas');
                         }
 
-                        // Cargar proyectos
+                        // Cargar proyectos (ya no hay semipermanentes)
                         const proyectosSnap = await window.firebaseGetDocs(window.firebaseCollection(db, 'proyectos'));
-                        const proyectosSemipermanentes = INITIAL_DATA.proyectos.filter(p => p.categoria === 'Semipermanente');
-                        
                         if (!proyectosSnap.empty) {
                             const proyectosData = proyectosSnap.docs.map(doc => doc.data());
-                            const proyectosNoSemipermanentes = proyectosData.filter(p => p.categoria !== 'Semipermanente');
-                            setProyectos([...proyectosSemipermanentes, ...proyectosNoSemipermanentes]);
+                            setProyectos(proyectosData);
+                            console.log('✅ Proyectos cargados:', proyectosData.length);
                         } else {
-                            setProyectos(INITIAL_DATA.proyectos);
-                            INITIAL_DATA.proyectos.filter(p => p.categoria !== 'Semipermanente').forEach(async (proyecto) => {
-                                await window.firebaseSetDoc(window.firebaseDoc(db, 'proyectos', proyecto.id), proyecto);
-                            });
+                            setProyectos([]);
+                            console.log('✅ Sin proyectos iniciales');
                         }
-                        
+
+                        setCargando(false);
+                        console.log('✅ TODOS LOS DATOS CARGADOS');
+
                     } catch (error) {
-                        console.error('Error cargando desde Firebase:', error);
-                        // Si falla Firebase, usar localStorage como fallback
-                        const savedData = localStorage.getItem('gestionProyectosData');
-                        if (savedData) {
-                            const data = JSON.parse(savedData);
-                            setMiembros(data.miembros || INITIAL_DATA.miembros);
-                            setEntidades(data.entidades || INITIAL_DATA.entidades);
-                            setProyectos(data.proyectos || INITIAL_DATA.proyectos);
-                        } else {
-                            setMiembros(INITIAL_DATA.miembros);
-                            setEntidades(INITIAL_DATA.entidades);
-                            setProyectos(INITIAL_DATA.proyectos);
-                        }
+                        console.error('❌ Error cargando desde Firebase:', error);
+                        // Fallback a datos iniciales
+                        setMiembros(INITIAL_DATA.miembros);
+                        setEntidades(INITIAL_DATA.entidades);
+                        setProyectos([]);
+                        setCargando(false);
                     }
                 };
 
-                loadFromFirebase();
+                cargarDatos();
             }, []);
 
-            // Guardar en Firebase cuando cambien los datos
+            // GUARDAR en Firebase cuando cambien los datos
             useEffect(() => {
-                const saveToFirebase = async () => {
-                    if (!window.firebaseInitialized || miembros.length === 0) return;
+                const guardarDatos = async () => {
+                    if (!window.firebaseInitialized || cargando || miembros.length === 0) return;
 
                     try {
+                        setGuardando(true);
                         const db = window.firebaseDB;
-                        
-                        console.log('💾 Iniciando guardado en Firebase...', { 
-                            miembrosCount: miembros.length, 
-                            entidadesCount: entidades.length, 
-                            proyectosCount: proyectos.length 
-                        });
-                        
-                        // Guardar miembros - ESPERAR a que terminen todos
+                        console.log('💾 Guardando en Firebase...');
+
+                        // Guardar miembros - ESPERAR
                         await Promise.all(
-                            miembros.map(miembro => 
-                                window.firebaseSetDoc(window.firebaseDoc(db, 'miembros', String(miembro.id)), miembro)
+                            miembros.map(m => 
+                                window.firebaseSetDoc(window.firebaseDoc(db, 'miembros', String(m.id)), m)
                             )
                         );
 
-                        // Guardar entidades - ESPERAR a que terminen todas
+                        // Guardar entidades - ESPERAR
                         await Promise.all(
-                            entidades.map(entidad => {
-                                console.log('💾 Guardando entidad en Firebase:', { id: entidad.id, nombre: entidad.nombre });
-                                return window.firebaseSetDoc(window.firebaseDoc(db, 'entidades', String(entidad.id)), entidad);
-                            })
+                            entidades.map(e => 
+                                window.firebaseSetDoc(window.firebaseDoc(db, 'entidades', String(e.id)), e)
+                            )
                         );
-                        console.log('✅ Entidades guardadas:', entidades.map(e => e.nombre).join(', '));
 
-                        // Guardar proyectos (excepto semipermanentes) - ESPERAR a que terminen todos
-                        const proyectosAGuardar = proyectos.filter(p => p.categoria !== 'Semipermanente');
+                        // Guardar proyectos - ESPERAR
                         await Promise.all(
-                            proyectosAGuardar.map(proyecto => {
-                                console.log('💾 Guardando proyecto en Firebase:', { id: proyecto.id, nombre: proyecto.nombre });
-                                return window.firebaseSetDoc(window.firebaseDoc(db, 'proyectos', String(proyecto.id)), proyecto);
-                            })
+                            proyectos.map(p => 
+                                window.firebaseSetDoc(window.firebaseDoc(db, 'proyectos', String(p.id)), p)
+                            )
                         );
-                        
-                        console.log('✅ TODO GUARDADO EN FIREBASE EXITOSAMENTE');
-                        
-                        // También guardar en localStorage como backup
-                        localStorage.setItem('gestionProyectosData', JSON.stringify({ 
-                            miembros, 
-                            entidades, 
-                            proyectos: proyectosAGuardar 
-                        }));
+
+                        console.log('✅ TODO GUARDADO EN FIREBASE');
+                        setGuardando(false);
+
                     } catch (error) {
                         console.error('❌ Error guardando en Firebase:', error);
-                        // Si falla Firebase, al menos guardar en localStorage
-                        const proyectosAGuardar = proyectos.filter(p => p.categoria !== 'Semipermanente');
-                        localStorage.setItem('gestionProyectosData', JSON.stringify({ 
-                            miembros, 
-                            entidades, 
-                            proyectos: proyectosAGuardar 
-                        }));
+                        setGuardando(false);
                     }
                 };
 
-                saveToFirebase();
-            }, [miembros, entidades, proyectos]);
+                // Debounce: esperar 500ms después del último cambio
+                const timer = setTimeout(guardarDatos, 500);
+                return () => clearTimeout(timer);
+
+            }, [miembros, entidades, proyectos, cargando]);
 
             const calcularDisponibilidad = (miembroId) => {
                 let cargaTotal = 0;
@@ -409,7 +367,7 @@
             };
 
             const asignarMiembro = (itemId, rol, miembroId, esEntidad = false, porcentajePersonalizado = null) => {
-                console.log('🔍 asignarMiembro llamado:', { itemId, rol, miembroId, esEntidad, porcentajePersonalizado, 'tipo de porcentaje': typeof porcentajePersonalizado });
+                console.log('🔍 asignarMiembro:', { itemId, rol, miembroId, esEntidad, porcentajePersonalizado, tipo: typeof porcentajePersonalizado });
                 
                 const items = esEntidad ? entidades : proyectos;
                 const setItems = esEntidad ? setEntidades : setProyectos;
@@ -417,85 +375,53 @@
                 const miembro = miembros.find(m => m.id === miembroId);
                 
                 if (!item || !miembro) {
-                    console.error('❌ Item o miembro no encontrado:', { item, miembro });
+                    console.error('❌ Item o miembro no encontrado');
                     return;
                 }
 
                 const disponibilidad = calcularDisponibilidad(miembroId);
                 const rolInfo = item.roles.find(r => r.nombre === rol);
                 
-                console.log('📋 Rol encontrado:', { rolInfo, 'rol buscado': rol, 'roles disponibles': item.roles.map(r => r.nombre) });
-                
-                // Usar porcentaje personalizado si existe (incluso si es 0), sino usar rol o tipo
-                const cargaRol = (porcentajePersonalizado !== null && porcentajePersonalizado !== undefined) 
+                // CRÍTICO: Convertir a número y usar porcentaje personalizado si existe
+                const porcentajeNumero = porcentajePersonalizado !== null && porcentajePersonalizado !== undefined 
                     ? Number(porcentajePersonalizado)
                     : (rolInfo?.porcentaje || tiposIntervencion[rolInfo?.tipo] || 50);
+                
+                const cargaRol = porcentajeNumero;
 
-                console.log('📊 Carga calculada:', { 
-                    cargaRol, 
-                    porcentajePersonalizado, 
-                    'porcentajePersonalizado !== null': porcentajePersonalizado !== null,
-                    'porcentajePersonalizado !== undefined': porcentajePersonalizado !== undefined,
-                    'rolInfo?.porcentaje': rolInfo?.porcentaje, 
-                    'tiposIntervencion[rolInfo?.tipo]': tiposIntervencion[rolInfo?.tipo] 
-                });
+                console.log('📊 Porcentaje a usar:', { porcentajePersonalizado, porcentajeNumero, cargaRol, 'rolInfo?.porcentaje': rolInfo?.porcentaje });
 
                 if (disponibilidad - cargaRol < 10) {
                     alert('Este miembro excedería el 90% de carga permitida.');
                     return;
                 }
 
-                if (!esEntidad && item.categoria === 'Semipermanente') {
-                    const bloqueo = estaBloqueado(miembroId, itemId);
-                    if (bloqueo.bloqueado) {
-                        alert(bloqueo.razon);
-                        return;
-                    }
-                }
-
                 setItems(items.map(p => {
                     if (p.id === itemId) {
                         const asignaciones = p.asignaciones || [];
                         if (asignaciones.some(a => a.rol === rol && a.miembroId === miembroId)) {
-                            console.warn('⚠️ Ya existe esta asignación, no se duplica');
+                            console.warn('⚠️ Ya existe esta asignación');
                             return p;
                         }
                         
-                        // CRÍTICO: Guardar el porcentaje personalizado, no el fallback
-                        const porcentajeAGuardar = (porcentajePersonalizado !== null && porcentajePersonalizado !== undefined) 
-                            ? Number(porcentajePersonalizado)
-                            : (rolInfo?.porcentaje || tiposIntervencion[rolInfo?.tipo] || 50);
-                        
-                        console.log('💾 Guardando asignación:', { 
+                        const nuevaAsignacion = { 
                             rol, 
                             miembroId, 
-                            porcentaje: porcentajeAGuardar,
-                            'tipo de porcentaje guardado': typeof porcentajeAGuardar,
-                            'total asignaciones después': asignaciones.length + 1
-                        });
-                        
-                        const nuevoItem = { 
-                            ...p, 
-                            asignaciones: [...asignaciones, { 
-                                rol, 
-                                miembroId, 
-                                porcentaje: porcentajeAGuardar,
-                                fecha: new Date().toISOString() 
-                            }] 
+                            porcentaje: porcentajeNumero,
+                            fecha: new Date().toISOString() 
                         };
                         
-                        console.log('✅ Nuevo item creado:', { 
-                            id: nuevoItem.id, 
-                            nombre: nuevoItem.nombre, 
-                            asignaciones: nuevoItem.asignaciones 
-                        });
+                        console.log('💾 Guardando asignación:', nuevaAsignacion);
                         
-                        return nuevoItem;
+                        return { 
+                            ...p, 
+                            asignaciones: [...asignaciones, nuevaAsignacion] 
+                        };
                     }
                     return p;
                 }));
                 
-                console.log('🎉 asignarMiembro completado');
+                console.log('✅ asignarMiembro completado');
             };
 
             const desasignarMiembro = (itemId, rol, miembroId, esEntidad = false) => {
@@ -675,10 +601,28 @@
 
             return (
                 <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+                    {/* Indicador de carga inicial */}
+                    {cargando && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                            <div className="bg-white rounded-lg p-8 shadow-2xl text-center">
+                                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+                                <p className="text-xl font-semibold text-gray-800">Cargando datos...</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Indicador de guardado */}
+                    {guardando && (
+                        <div className="fixed top-4 right-4 bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-lg z-40 flex items-center space-x-2">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            <span>Guardando...</span>
+                        </div>
+                    )}
+
                     <header className="bg-white shadow-md">
                         <div className="max-w-7xl mx-auto px-4 py-6">
                             <h1 className="text-3xl font-bold text-indigo-900">
-                                <i className="fas fa-project-diagram mr-3"></i>Gestión de Proyectos
+                                <i className="fas fa-project-diagram mr-3"></i>Gestión de Proyectos v13.0
                             </h1>
                             <p className="text-gray-600 mt-1">Optimiza la planificación y asignación de recursos</p>
                         </div>
@@ -1262,7 +1206,7 @@
 
             const setPorcentajeParaMiembro = (miembroId, porcentaje) => {
                 const porcentajeNumero = Number(porcentaje);
-                console.log('📝 setPorcentajeParaMiembro:', { miembroId, porcentaje, porcentajeNumero, type: typeof porcentajeNumero });
+                console.log('📝 setPorcentajeParaMiembro:', { miembroId, porcentaje, porcentajeNumero });
                 setPorcentajePersonalizado({
                     ...porcentajePersonalizado,
                     [miembroId]: porcentajeNumero
@@ -1271,7 +1215,7 @@
 
             const handleAsignar = (miembroId) => {
                 const porcentaje = Number(getPorcentajeParaMiembro(miembroId));
-                console.log('🎯 handleAsignar:', { miembroId, porcentaje, type: typeof porcentaje, 'porcentajePersonalizado[miembroId]': porcentajePersonalizado[miembroId], 'sugerido': getPorcentajeSugerido() });
+                console.log('🎯 handleAsignar:', { miembroId, porcentaje });
                 asignarMiembro(rol.nombre, miembroId, porcentaje);
                 // Limpiar el porcentaje personalizado después de asignar
                 const newPorcentajes = { ...porcentajePersonalizado };

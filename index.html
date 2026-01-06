@@ -43,7 +43,7 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        const DATA_VERSION = "11.3 - Debug Enhanced"; // Cambiar esta versión fuerza recarga de datos
+        const DATA_VERSION = "11.5 - Firebase ID Fix"; // Cambiar esta versión fuerza recarga de datos
         const INITIAL_DATA = {
             miembros: [
                 { id: 2, nombre: "Alonso Zapata", roles: ["Programadores", "Guardián de Calidad", "Responsable de Datos y Aprendizaje Estratégico", "Innovación Tec", "Strategic Challenger"] },
@@ -245,21 +245,38 @@
                     try {
                         const db = window.firebaseDB;
                         
-                        // Guardar miembros
-                        miembros.forEach(async (miembro) => {
-                            await window.firebaseSetDoc(window.firebaseDoc(db, 'miembros', String(miembro.id)), miembro);
+                        console.log('💾 Iniciando guardado en Firebase...', { 
+                            miembrosCount: miembros.length, 
+                            entidadesCount: entidades.length, 
+                            proyectosCount: proyectos.length 
                         });
+                        
+                        // Guardar miembros - ESPERAR a que terminen todos
+                        await Promise.all(
+                            miembros.map(miembro => 
+                                window.firebaseSetDoc(window.firebaseDoc(db, 'miembros', String(miembro.id)), miembro)
+                            )
+                        );
 
-                        // Guardar entidades
-                        entidades.forEach(async (entidad) => {
-                            await window.firebaseSetDoc(window.firebaseDoc(db, 'entidades', entidad.id), entidad);
-                        });
+                        // Guardar entidades - ESPERAR a que terminen todas
+                        await Promise.all(
+                            entidades.map(entidad => {
+                                console.log('💾 Guardando entidad en Firebase:', { id: entidad.id, nombre: entidad.nombre });
+                                return window.firebaseSetDoc(window.firebaseDoc(db, 'entidades', String(entidad.id)), entidad);
+                            })
+                        );
+                        console.log('✅ Entidades guardadas:', entidades.map(e => e.nombre).join(', '));
 
-                        // Guardar proyectos (excepto semipermanentes)
+                        // Guardar proyectos (excepto semipermanentes) - ESPERAR a que terminen todos
                         const proyectosAGuardar = proyectos.filter(p => p.categoria !== 'Semipermanente');
-                        proyectosAGuardar.forEach(async (proyecto) => {
-                            await window.firebaseSetDoc(window.firebaseDoc(db, 'proyectos', proyecto.id), proyecto);
-                        });
+                        await Promise.all(
+                            proyectosAGuardar.map(proyecto => {
+                                console.log('💾 Guardando proyecto en Firebase:', { id: proyecto.id, nombre: proyecto.nombre });
+                                return window.firebaseSetDoc(window.firebaseDoc(db, 'proyectos', String(proyecto.id)), proyecto);
+                            })
+                        );
+                        
+                        console.log('✅ TODO GUARDADO EN FIREBASE EXITOSAMENTE');
                         
                         // También guardar en localStorage como backup
                         localStorage.setItem('gestionProyectosData', JSON.stringify({ 
@@ -268,7 +285,7 @@
                             proyectos: proyectosAGuardar 
                         }));
                     } catch (error) {
-                        console.error('Error guardando en Firebase:', error);
+                        console.error('❌ Error guardando en Firebase:', error);
                         // Si falla Firebase, al menos guardar en localStorage
                         const proyectosAGuardar = proyectos.filter(p => p.categoria !== 'Semipermanente');
                         localStorage.setItem('gestionProyectosData', JSON.stringify({ 
@@ -1213,15 +1230,17 @@
             };
 
             const setPorcentajeParaMiembro = (miembroId, porcentaje) => {
+                const porcentajeNumero = Number(porcentaje);
+                console.log('📝 setPorcentajeParaMiembro:', { miembroId, porcentaje, porcentajeNumero, type: typeof porcentajeNumero });
                 setPorcentajePersonalizado({
                     ...porcentajePersonalizado,
-                    [miembroId]: porcentaje
+                    [miembroId]: porcentajeNumero
                 });
             };
 
             const handleAsignar = (miembroId) => {
-                const porcentaje = getPorcentajeParaMiembro(miembroId);
-                console.log('🎯 handleAsignar:', { miembroId, porcentaje, 'porcentajePersonalizado[miembroId]': porcentajePersonalizado[miembroId], 'sugerido': getPorcentajeSugerido() });
+                const porcentaje = Number(getPorcentajeParaMiembro(miembroId));
+                console.log('🎯 handleAsignar:', { miembroId, porcentaje, type: typeof porcentaje, 'porcentajePersonalizado[miembroId]': porcentajePersonalizado[miembroId], 'sugerido': getPorcentajeSugerido() });
                 asignarMiembro(rol.nombre, miembroId, porcentaje);
                 // Limpiar el porcentaje personalizado después de asignar
                 const newPorcentajes = { ...porcentajePersonalizado };

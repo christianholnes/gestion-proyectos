@@ -45,7 +45,7 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        const DATA_VERSION = "13.7"; // Cambiar esta versión fuerza recarga de datos
+        const DATA_VERSION = "13.8"; // Cambiar esta versión fuerza recarga de datos
         const INITIAL_DATA = {
             miembros: [
                 { id: 2, nombre: "Alonso Zapata", roles: ["Programadores", "Guardián de Calidad", "Responsable de Datos y Aprendizaje Estratégico", "Innovación Tec", "Strategic Challenger"] },
@@ -672,9 +672,8 @@
                                 'Miembro': m.nombre,
                                 'Carga Total (%)': carga,
                                 'Disponibilidad (%)': disp,
-                                'Estado': carga >= 90 ? '🔴 Sobrecargado' : 
-                                         carga >= 70 ? '🟡 Alta carga' : 
-                                         carga >= 50 ? '🟢 Carga normal' : '⚪ Disponible',
+                                'Estado': carga > 90 ? '🔴 Sobrecarga' : 
+                                         carga === 90 ? '🟢 Punto Óptimo' : '🟡 Disponible',
                                 'Proyectos/Entidades': asignaciones.length,
                                 'Detalle': asignaciones.map(a => 
                                     `${a.proyecto} (${a.rol}: ${a.porcentaje}%)`
@@ -709,9 +708,8 @@
                                 'Miembro': m.nombre,
                                 'Disponibilidad (%)': disp,
                                 'Carga Actual (%)': carga,
-                                'Estado': disp >= 70 ? '🟢 Muy disponible' : 
-                                         disp >= 50 ? '🟡 Disponible' : 
-                                         disp >= 20 ? '🟠 Poca disponibilidad' : '🔴 Sin disponibilidad',
+                                'Estado': carga > 90 ? '🔴 Sobrecarga' : 
+                                         carga === 90 ? '🟢 Punto Óptimo' : '🟡 Disponible',
                                 'Roles': m.roles.join(', '),
                                 'Total Roles': m.roles.length,
                                 'Proyectos Activos': [...proyectos, ...entidades].filter(i => 
@@ -726,8 +724,8 @@
                     
                     // Resumen estadístico
                     const promDisp = dataDisp.reduce((sum, d) => sum + d['Disponibilidad (%)'], 0) / dataDisp.length;
-                    const muyDisponibles = dataDisp.filter(d => d['Disponibilidad (%)'] >= 70).length;
-                    const sobrecargados = dataDisp.filter(d => d['Disponibilidad (%)'] < 10).length;
+                    const puntoOptimo = dataDisp.filter(d => d['Carga Actual (%)'] === 90).length;
+                    const sobrecargados = dataDisp.filter(d => d['Carga Actual (%)'] > 90).length;
                     
                     const resumen = [{
                         'Métrica': 'Total Miembros',
@@ -736,8 +734,8 @@
                         'Métrica': 'Disponibilidad Promedio (%)',
                         'Valor': promDisp.toFixed(1)
                     }, {
-                        'Métrica': 'Miembros Muy Disponibles',
-                        'Valor': muyDisponibles
+                        'Métrica': 'Miembros en Punto Óptimo',
+                        'Valor': puntoOptimo
                     }, {
                         'Métrica': 'Miembros Sobrecargados',
                         'Valor': sobrecargados
@@ -1840,7 +1838,7 @@
                         carga, 
                         disp,
                         asignaciones,
-                        estado: carga > 100 ? 'Sobrecarga' : carga >= 90 ? 'Punto Óptimo' : 'Disponible'
+                        estado: carga > 90 ? 'Sobrecarga' : carga === 90 ? 'Punto Óptimo' : 'Disponible'
                     };
                 })
                 .filter(d => d.nombre.toLowerCase().includes(busqueda.toLowerCase()))
@@ -1861,7 +1859,7 @@
                         carga,
                         roles: m.roles.length,
                         proyectosActivos,
-                        estado: carga > 100 ? 'Sobrecarga' : carga >= 90 ? 'Punto Óptimo' : 'Disponible'
+                        estado: carga > 90 ? 'Sobrecarga' : carga === 90 ? 'Punto Óptimo' : 'Disponible'
                     };
                 })
                 .filter(d => d.nombre.toLowerCase().includes(busqueda.toLowerCase()))
@@ -1870,8 +1868,8 @@
             // Resumen estadístico
             const promCarga = dataCarga.reduce((sum, d) => sum + d.carga, 0) / dataCarga.length || 0;
             const promDisp = dataDisp.reduce((sum, d) => sum + d.disp, 0) / dataDisp.length || 0;
-            const sobrecargados = dataCarga.filter(d => d.carga > 100).length;
-            const muyDisponibles = dataDisp.filter(d => d.carga >= 90 && d.carga <= 100).length;
+            const sobrecargados = dataCarga.filter(d => d.carga > 90).length;
+            const muyDisponibles = dataDisp.filter(d => d.carga === 90).length;
 
             return (
                 <div className="space-y-6">
@@ -1955,7 +1953,7 @@
                                                                 <div className="w-24 bg-gray-200 rounded-full h-2 mr-2">
                                                                     <div 
                                                                         className={`h-2 rounded-full ${
-                                                                            d.carga > 100 ? 'bg-red-600' :
+                                                                            d.carga > 90 ? 'bg-red-600' :
                                                                             d.carga >= 90 ? 'bg-green-500' : 'bg-yellow-500'
                                                                         }`}
                                                                         style={{width: `${Math.min(d.carga, 100)}%`}}
@@ -2030,7 +2028,7 @@
                                                                 <div className="w-24 bg-gray-200 rounded-full h-2 mr-2">
                                                                     <div 
                                                                         className={`h-2 rounded-full ${
-                                                                            d.carga > 100 ? 'bg-red-600' :
+                                                                            d.carga > 90 ? 'bg-red-600' :
                                                                             d.carga >= 90 ? 'bg-green-500' : 'bg-yellow-500'
                                                                         }`}
                                                                         style={{width: `${d.disp}%`}}

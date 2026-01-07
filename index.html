@@ -415,8 +415,8 @@
                 
                 try {
                     // Eliminar de Firebase (usar el ID, no el nombre)
-                    const docRef = firebaseDoc(firebaseDb, 'miembros', String(id));
-                    await firebaseDeleteDoc(docRef);
+                    const docRef = window.firebaseDoc(window.firebaseDB, 'miembros', String(id));
+                    await window.firebaseDeleteDoc(docRef);
                     console.log('✅ Miembro eliminado de Firebase, ID:', id);
                     
                     // Actualizar estado local
@@ -442,8 +442,8 @@
                 
                 try {
                     // Eliminar de Firebase (usar el ID, no el nombre)
-                    const docRef = firebaseDoc(firebaseDb, 'proyectos', String(id));
-                    await firebaseDeleteDoc(docRef);
+                    const docRef = window.firebaseDoc(window.firebaseDB, 'proyectos', String(id));
+                    await window.firebaseDeleteDoc(docRef);
                     console.log('✅ Proyecto eliminado de Firebase, ID:', id);
                     
                     // Actualizar estado local
@@ -470,8 +470,8 @@
                 
                 try {
                     // Eliminar de Firebase (usar el ID, no el nombre)
-                    const docRef = firebaseDoc(firebaseDb, 'entidades', String(id));
-                    await firebaseDeleteDoc(docRef);
+                    const docRef = window.firebaseDoc(window.firebaseDB, 'entidades', String(id));
+                    await window.firebaseDeleteDoc(docRef);
                     console.log('✅ Entidad eliminada de Firebase, ID:', id);
                     
                     // Actualizar estado local

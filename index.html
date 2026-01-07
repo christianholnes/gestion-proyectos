@@ -10,6 +10,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
+    <!-- SheetJS para exportar Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    
     <!-- Firebase v9 -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
@@ -42,7 +45,7 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        const DATA_VERSION = "13.4"; // Cambiar esta versión fuerza recarga de datos
+        const DATA_VERSION = "13.5"; // Cambiar esta versión fuerza recarga de datos
         const INITIAL_DATA = {
             miembros: [
                 { id: 2, nombre: "Alonso Zapata", roles: ["Programadores", "Guardián de Calidad", "Responsable de Datos y Aprendizaje Estratégico", "Innovación Tec", "Strategic Challenger"] },
@@ -560,6 +563,204 @@
                 'roles': 'Roles'
             };
 
+            // === FUNCIONES DE EXPORTACIÓN ===
+            const exportarAExcel = () => {
+                try {
+                    const wb = XLSX.utils.book_new();
+                    
+                    // HOJA 1: Miembros
+                    const dataMiembros = miembros.map(m => ({
+                        'Nombre': m.nombre,
+                        'Roles': m.roles.join(', '),
+                        'Cantidad de Roles': m.roles.length,
+                        'Disponibilidad (%)': calcularDisponibilidad(m.id),
+                        'Carga (%)': 100 - calcularDisponibilidad(m.id),
+                        'Proyectos Asignados': [...proyectos, ...entidades].filter(i => 
+                            (i.asignaciones || []).some(a => a.miembroId === m.id)
+                        ).length
+                    }));
+                    const wsMiembros = XLSX.utils.json_to_sheet(dataMiembros);
+                    XLSX.utils.book_append_sheet(wb, wsMiembros, 'Miembros');
+                    
+                    // HOJA 2: Proyectos
+                    const dataProyectos = proyectos.map(p => ({
+                        'Nombre': p.nombre,
+                        'Categoría': p.categoria,
+                        'Fecha Inicio': p.fechaInicio || 'Sin fecha',
+                        'Fecha Fin': p.fechaFin || 'Sin fecha',
+                        'Roles': p.roles.length,
+                        'Asignaciones': (p.asignaciones || []).length,
+                        'Miembros': [...new Set((p.asignaciones || []).map(a => {
+                            const m = miembros.find(mm => mm.id === a.miembroId);
+                            return m ? m.nombre : 'Desconocido';
+                        }))].join(', ')
+                    }));
+                    const wsProyectos = XLSX.utils.json_to_sheet(dataProyectos);
+                    XLSX.utils.book_append_sheet(wb, wsProyectos, 'Proyectos');
+                    
+                    // HOJA 3: Entidades
+                    const dataEntidades = entidades.map(e => ({
+                        'Nombre': e.nombre,
+                        'Tipo': e.tipo || 'Entidad',
+                        'Fecha Inicio': e.fechaInicio || 'Sin fecha',
+                        'Fecha Fin': e.fechaFin || 'Sin fecha',
+                        'Roles': e.roles.length,
+                        'Asignaciones': (e.asignaciones || []).length,
+                        'Miembros': [...new Set((e.asignaciones || []).map(a => {
+                            const m = miembros.find(mm => mm.id === a.miembroId);
+                            return m ? m.nombre : 'Desconocido';
+                        }))].join(', ')
+                    }));
+                    const wsEntidades = XLSX.utils.json_to_sheet(dataEntidades);
+                    XLSX.utils.book_append_sheet(wb, wsEntidades, 'Entidades');
+                    
+                    // HOJA 4: Asignaciones Detalladas
+                    const dataAsignaciones = [];
+                    [...proyectos, ...entidades].forEach(item => {
+                        (item.asignaciones || []).forEach(asig => {
+                            const m = miembros.find(mm => mm.id === asig.miembroId);
+                            const rol = item.roles.find(r => r.nombre === asig.rol);
+                            dataAsignaciones.push({
+                                'Proyecto/Entidad': item.nombre,
+                                'Tipo': proyectos.includes(item) ? item.categoria : 'Entidad',
+                                'Miembro': m ? m.nombre : 'Desconocido',
+                                'Rol': asig.rol,
+                                'Tipo Intervención': rol?.tipo || 'N/A',
+                                'Porcentaje': asig.porcentaje || rol?.porcentaje || tiposIntervencion[rol?.tipo] || 0,
+                                'Fecha Asignación': asig.fecha ? new Date(asig.fecha).toLocaleDateString('es-MX') : 'N/A'
+                            });
+                        });
+                    });
+                    const wsAsignaciones = XLSX.utils.json_to_sheet(dataAsignaciones);
+                    XLSX.utils.book_append_sheet(wb, wsAsignaciones, 'Asignaciones');
+                    
+                    // Descargar archivo
+                    const fecha = new Date().toISOString().split('T')[0];
+                    XLSX.writeFile(wb, `Gestion-Proyectos-${fecha}.xlsx`);
+                    
+                    console.log('✅ Excel exportado exitosamente');
+                } catch (error) {
+                    console.error('❌ Error exportando Excel:', error);
+                    alert('Error al exportar. Revisa la consola.');
+                }
+            };
+
+            const exportarReporteCarga = () => {
+                try {
+                    const wb = XLSX.utils.book_new();
+                    
+                    // Reporte de Carga por Miembro (ordenado por mayor carga)
+                    const dataCarga = miembros
+                        .map(m => {
+                            const disp = calcularDisponibilidad(m.id);
+                            const carga = 100 - disp;
+                            const asignaciones = [...proyectos, ...entidades].reduce((acc, item) => {
+                                const asigs = (item.asignaciones || []).filter(a => a.miembroId === m.id);
+                                asigs.forEach(a => {
+                                    const rol = item.roles.find(r => r.nombre === a.rol);
+                                    acc.push({
+                                        proyecto: item.nombre,
+                                        rol: a.rol,
+                                        porcentaje: a.porcentaje || rol?.porcentaje || tiposIntervencion[rol?.tipo] || 0
+                                    });
+                                });
+                                return acc;
+                            }, []);
+                            
+                            return {
+                                'Miembro': m.nombre,
+                                'Carga Total (%)': carga,
+                                'Disponibilidad (%)': disp,
+                                'Estado': carga >= 90 ? '🔴 Sobrecargado' : 
+                                         carga >= 70 ? '🟡 Alta carga' : 
+                                         carga >= 50 ? '🟢 Carga normal' : '⚪ Disponible',
+                                'Proyectos/Entidades': asignaciones.length,
+                                'Detalle': asignaciones.map(a => 
+                                    `${a.proyecto} (${a.rol}: ${a.porcentaje}%)`
+                                ).join(' | ')
+                            };
+                        })
+                        .sort((a, b) => b['Carga Total (%)'] - a['Carga Total (%)']);
+                    
+                    const wsCarga = XLSX.utils.json_to_sheet(dataCarga);
+                    XLSX.utils.book_append_sheet(wb, wsCarga, 'Carga por Miembro');
+                    
+                    const fecha = new Date().toISOString().split('T')[0];
+                    XLSX.writeFile(wb, `Reporte-Carga-${fecha}.xlsx`);
+                    
+                    console.log('✅ Reporte de Carga exportado');
+                } catch (error) {
+                    console.error('❌ Error exportando reporte:', error);
+                    alert('Error al exportar. Revisa la consola.');
+                }
+            };
+
+            const exportarReporteDisponibilidad = () => {
+                try {
+                    const wb = XLSX.utils.book_new();
+                    
+                    // Reporte de Disponibilidad (ordenado por mayor disponibilidad)
+                    const dataDisp = miembros
+                        .map(m => {
+                            const disp = calcularDisponibilidad(m.id);
+                            const carga = 100 - disp;
+                            return {
+                                'Miembro': m.nombre,
+                                'Disponibilidad (%)': disp,
+                                'Carga Actual (%)': carga,
+                                'Estado': disp >= 70 ? '🟢 Muy disponible' : 
+                                         disp >= 50 ? '🟡 Disponible' : 
+                                         disp >= 20 ? '🟠 Poca disponibilidad' : '🔴 Sin disponibilidad',
+                                'Roles': m.roles.join(', '),
+                                'Total Roles': m.roles.length,
+                                'Proyectos Activos': [...proyectos, ...entidades].filter(i => 
+                                    (i.asignaciones || []).some(a => a.miembroId === m.id)
+                                ).length
+                            };
+                        })
+                        .sort((a, b) => b['Disponibilidad (%)'] - a['Disponibilidad (%)']);
+                    
+                    const wsDisp = XLSX.utils.json_to_sheet(dataDisp);
+                    XLSX.utils.book_append_sheet(wb, wsDisp, 'Disponibilidad Equipo');
+                    
+                    // Resumen estadístico
+                    const promDisp = dataDisp.reduce((sum, d) => sum + d['Disponibilidad (%)'], 0) / dataDisp.length;
+                    const muyDisponibles = dataDisp.filter(d => d['Disponibilidad (%)'] >= 70).length;
+                    const sobrecargados = dataDisp.filter(d => d['Disponibilidad (%)'] < 10).length;
+                    
+                    const resumen = [{
+                        'Métrica': 'Total Miembros',
+                        'Valor': miembros.length
+                    }, {
+                        'Métrica': 'Disponibilidad Promedio (%)',
+                        'Valor': promDisp.toFixed(1)
+                    }, {
+                        'Métrica': 'Miembros Muy Disponibles',
+                        'Valor': muyDisponibles
+                    }, {
+                        'Métrica': 'Miembros Sobrecargados',
+                        'Valor': sobrecargados
+                    }, {
+                        'Métrica': 'Proyectos Activos',
+                        'Valor': proyectos.length
+                    }, {
+                        'Métrica': 'Entidades Activas',
+                        'Valor': entidades.length
+                    }];
+                    
+                    const wsResumen = XLSX.utils.json_to_sheet(resumen);
+                    XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen');
+                    
+                    const fecha = new Date().toISOString().split('T')[0];
+                    XLSX.writeFile(wb, `Reporte-Disponibilidad-${fecha}.xlsx`);
+                    
+                    console.log('✅ Reporte de Disponibilidad exportado');
+                } catch (error) {
+                    console.error('❌ Error exportando reporte:', error);
+                    alert('Error al exportar. Revisa la consola.');
+                }
+            };
+
             return (
                 <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
                     {/* Indicador de carga inicial */}
@@ -620,6 +821,9 @@
                             <Dashboard 
                                 miembros={miembros} entidades={entidades} proyectos={proyectos}
                                 calcularDisponibilidad={calcularDisponibilidad}
+                                exportarAExcel={exportarAExcel}
+                                exportarReporteCarga={exportarReporteCarga}
+                                exportarReporteDisponibilidad={exportarReporteDisponibilidad}
                             />
                         )}
 
@@ -722,7 +926,7 @@
             );
         }
 
-        function Dashboard({ miembros, entidades, proyectos, calcularDisponibilidad }) {
+        function Dashboard({ miembros, entidades, proyectos, calcularDisponibilidad, exportarAExcel, exportarReporteCarga, exportarReporteDisponibilidad }) {
             const totalAsig = [...proyectos, ...entidades].reduce((acc, i) => acc + (i.asignaciones || []).length, 0);
 
             return (
@@ -746,6 +950,40 @@
                                 </div>
                             </div>
                         ))}
+                    </div>
+
+                    {/* Botones de Exportación */}
+                    <div className="bg-white rounded-lg shadow-md p-6">
+                        <h3 className="text-lg font-bold text-gray-900 mb-4">
+                            <i className="fas fa-download mr-2 text-green-600"></i>Exportar Datos
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <button
+                                onClick={exportarAExcel}
+                                className="flex items-center justify-center px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                            >
+                                <i className="fas fa-file-excel mr-2"></i>
+                                Exportar Todo a Excel
+                            </button>
+                            <button
+                                onClick={exportarReporteCarga}
+                                className="flex items-center justify-center px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                            >
+                                <i className="fas fa-chart-bar mr-2"></i>
+                                Reporte de Carga
+                            </button>
+                            <button
+                                onClick={exportarReporteDisponibilidad}
+                                className="flex items-center justify-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                                <i className="fas fa-user-check mr-2"></i>
+                                Reporte de Disponibilidad
+                            </button>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-3">
+                            <i className="fas fa-info-circle mr-1"></i>
+                            Los archivos se descargarán automáticamente con la fecha actual
+                        </p>
                     </div>
 
                     <div className="bg-white rounded-lg shadow-md p-6">
@@ -1013,9 +1251,9 @@
                         </button>
                     </div>
 
-                    {renderProyectos(semipermanentes, '🌳 Semipermanentes', 'text-green-700')}
-                    {renderProyectos(radiales, '🔵 Radiales', 'text-blue-700')}
-                    {renderProyectos(transversales, '🔶 Transversales', 'text-orange-700')}
+                    {renderProyectos(semipermanentes, '🌿 Semipermanentes', 'text-green-700')}
+                    {renderProyectos(radiales, '🌸 Radiales', 'text-pink-700')}
+                    {renderProyectos(transversales, '🌸 Transversales', 'text-orange-700')}
 
                     {proyectos.length === 0 && (
                         <div className="text-center py-12 bg-white rounded-lg shadow-md">
